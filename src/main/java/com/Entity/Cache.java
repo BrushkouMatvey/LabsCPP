@@ -23,6 +23,17 @@ public class Cache {
     @Column(name = "perimeter")
     private Double perimeter;
 
+    @Column(name = "responceid")
+    private int responceId;
+
+    public int getResponceId() {
+        return responceId;
+    }
+
+    public void setResponceId(int responceId) {
+        this.responceId = responceId;
+    }
+
     public int getId() {
         return id;
     }
@@ -73,13 +84,14 @@ public class Cache {
 
     @Override
     public String toString() {
-        return "CacheResult{" +
+        return "Cache{" +
                 "id=" + id +
                 ", firstSide='" + firstSide + '\'' +
                 ", secondSide='" + secondSide + '\'' +
                 ", thirdSide='" + thirdSide + '\'' +
-                ", square='" + square.toString() + '\'' +
-                ", perimeter='" + perimeter.toString() + '\'' +
+                ", square=" + square +
+                ", perimeter=" + perimeter +
+                ", responceId=" + responceId +
                 '}';
     }
 }

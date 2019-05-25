@@ -8,6 +8,7 @@ import com.Service.*;
 import org.apache.log4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.transaction.interceptor.TransactionInterceptor;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -49,17 +50,18 @@ public class TriangleController {
 
     }
 
-    @PostMapping("/statistics")
-    public ResponseData triangle(@RequestBody RequestData data){
-        List<Triangle> results = service.processList(data.getList());
-        Statistics stats = service.collectStats(data.getList());
-        return new ResponseData(results, stats);
-    }
-
     @GetMapping("/getAll")
     public List<Cache> getAll(){
         return service.getAll();
     }
+
+    @PostMapping("/triangle/async")
+    public ResponseEntity<String> processListAsync(@RequestBody List<Parameters> list){
+        return ResponseEntity.ok().body(service.asynchCalculate(list).toString());
+    }
+
+    @GetMapping("/async/{id}")
+    public List<Triangle> getAsyncrAnswers(@PathVariable("id") String id){
+        return service.getAnswerById(id);
+    }
 }
-//чекни вызови этот метод должно вынять что в базе
-//у тебя есть постман? это прописать?? счася сделаю

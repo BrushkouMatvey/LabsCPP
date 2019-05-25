@@ -13,6 +13,11 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import javax.annotation.PostConstruct;
+import java.util.Random;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.stream.Collectors;
 
 import org.apache.log4j.Logger;
@@ -32,13 +37,15 @@ public class TriangleService {
     @Autowired
     private CacheRepository cacheRepository;
 
+    private ExecutorService executor = Executors.newSingleThreadExecutor();
+
     @PostConstruct
-    void init(){
-        cacheRepository.findAll().forEach(value->{
-            Parameters parameters = new Parameters(value.getFirstSide(),value.getSecondSide(),value.getThirdSide());
-            Triangle triangle = new Triangle(value.getSquare(),value.getPerimeter());
-            System.out.println(value.toString());
-            cacheMap.put(parameters,triangle);
+    void init() {
+        cacheRepository.findAll().forEach(value -> {
+            Parameters parameters = new Parameters(value.getFirstSide(), value.getSecondSide(), value.getThirdSide());
+            Triangle triangle = new Triangle(value.getSquare(), value.getPerimeter());
+
+            cacheMap.put(parameters, triangle);
             log.info("Add " + triangle.toString() + "at cache!");
         });
     }
@@ -80,55 +87,57 @@ public class TriangleService {
     }
 
 
-    public List<Triangle> processList(List<Parameters> list) {
-        this.triangle = list.stream().filter(value -> {
+    public Future<List<Triangle>> processList(List<Parameters> list, int id) {
+        return this.executor.submit(() -> {
+            return list.stream().filter(value -> {
 
-            Double firstSide = value.dGetFirstSide();
-            Double secondSide = value.dGetSecondSide();
-            Double thirdSide = value.dGetThirdSide();
+                Double firstSide = value.dGetFirstSide();
+                Double secondSide = value.dGetSecondSide();
+                Double thirdSide = value.dGetThirdSide();
 
-            boolean isValidSides = firstSide > 0 && secondSide > 0 && thirdSide > 0;
-            boolean isExist = firstSide + secondSide > thirdSide &&
-                    firstSide + thirdSide > secondSide &&
-                    secondSide + thirdSide > firstSide;
+                boolean isValidSides = firstSide > 0 && secondSide > 0 && thirdSide > 0;
+                boolean isExist = firstSide + secondSide > thirdSide &&
+                        firstSide + thirdSide > secondSide &&
+                        secondSide + thirdSide > firstSide;
 
-            return isValidSides && isExist;
-        }).map(value -> {
+                return isValidSides && isExist;
+            }).map(value -> {
+                System.out.println("huhuuhuh");
+                log.info("We are in stream map!");
+                if (this.cacheMap.containKey(value)) {
+                    log.info("We use cache!!!");
+                    return this.cacheMap.get(value);
+                }
+                Cache result = new Cache();
 
-            log.info("We are in stream map!");
-            if (this.cacheMap.containKey(value)) {
-                log.info("We use cache!!!");
-                return this.cacheMap.get(value);
-            }
-            Cache result = new Cache();
+                Double perimeter = value.dGetFirstSide() +
+                        value.dGetSecondSide() +
+                        value.dGetThirdSide();
+                Double semiPerimeter = perimeter / 2;
 
-            Double perimeter = value.dGetFirstSide() +
-                    value.dGetSecondSide() +
-                    value.dGetThirdSide();
-            Double semiPerimeter = perimeter / 2;
+                Double square = Math.sqrt(semiPerimeter *
+                        (semiPerimeter - value.dGetFirstSide()) *
+                        (semiPerimeter - value.dGetSecondSide()) *
+                        (semiPerimeter - value.dGetThirdSide()));
 
-            Double square = Math.sqrt(semiPerimeter *
-                    (semiPerimeter - value.dGetFirstSide()) *
-                    (semiPerimeter - value.dGetSecondSide()) *
-                    (semiPerimeter - value.dGetThirdSide()));
+                Triangle triangle_result = new Triangle(square, perimeter);
 
-            Triangle triangle_result = new Triangle(square, perimeter);
+                result.setFirstSide(value.getFirstSide());
+                result.setSecondSide(value.getSecondSide());
+                result.setThirdSide(value.getThirdSide());
+                result.setSquare(triangle_result.getSquare());
+                result.setPerimeter(triangle_result.getPerimeter());
+                result.setResponceId(id);
 
-            result.setFirstSide(value.getFirstSide());
-            result.setSecondSide(value.getSecondSide());
-            result.setThirdSide(value.getThirdSide());
-            result.setSquare(triangle_result.getSquare());
-            result.setPerimeter(triangle_result.getPerimeter());
-            System.out.println(result.toString());
-            cacheRepository.save(result);
-            this.cacheMap.put(new Parameters(value.getFirstSide(), value.getSecondSide(), value.getThirdSide()),triangle_result);
-            log.info("HTTP status 200, response :" + triangle_result.toString());
-            return triangle_result;
-        }).collect(Collectors.toList());
-        return triangle;
+                cacheRepository.save(result);
+                this.cacheMap.put(new Parameters(value.getFirstSide(), value.getSecondSide(), value.getThirdSide()), triangle_result);
+                log.info("HTTP status 200, response :" + triangle_result.toString());
+                return triangle_result;
+            }).collect(Collectors.toList());
+        });
     }
 
-    public Statistics collectStats(List<Parameters> requests){
+    public Statistics collectStats(List<Parameters> requests) {
         Statistics stats = new Statistics();
 
         stats.setInputsAmount(requests.size());
@@ -140,12 +149,11 @@ public class TriangleService {
         return stats;
     }
 
-    public Triangle findPopularResult()
-    {
+    public Triangle findPopularResult() {
         if (this.triangle.isEmpty()) return null;
 
         HashMap<Triangle, Integer> popularityMap = new HashMap<>();
-        this.triangle.forEach( a -> {
+        this.triangle.forEach(a -> {
             if (popularityMap.containsKey(a)) {
                 popularityMap.put(a, popularityMap.get(a) + 1);
             } else popularityMap.put(a, 1);
@@ -160,9 +168,29 @@ public class TriangleService {
         return popularTriangle;
     }
 
-    public List<Cache> getAll(){
+    public List<Cache> getAll() {
         return cacheRepository.findAll();
     }
+
+
+    public Integer asynchCalculate(List<Parameters> parameters) {
+        int id = new Random().nextInt(50000) + 1;
+
+        Future<List<Triangle>> result = processList(parameters, id);
+
+        //logger.info("Return id!");
+        return id;
+    }
+
+
+    public List<Triangle> getAnswerById(String id) {
+        return cacheRepository.getAllByResponceId(Integer.parseInt(id))
+                .stream()
+                .map(value ->
+                        new Triangle(value.getSquare(), value.getPerimeter()))
+                .collect(Collectors.toList());
+    }
+
 }
 
 

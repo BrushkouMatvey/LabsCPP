@@ -8,4 +8,5 @@ import java.util.List;
 @Repository
 public interface CacheRepository extends CrudRepository<Cache,Integer> {
     List<Cache> findAll();
+    List<Cache> getAllByResponceId(int id);
 }
